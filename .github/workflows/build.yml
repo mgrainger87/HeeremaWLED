@@ -1,28 +1,30 @@
-name: Build against WLED
+name: Build firmware
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
+    tags: ["v*"]
   pull_request:
-  schedule:
-    - cron: '0 4 * * *'   # nightly at 04:00 UTC
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  firmware:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout usermod
+      - name: Checkout HeeremaWLED
         uses: actions/checkout@v6
         with:
           path: usermod
-          persist-credentials: false
 
-      - name: Checkout WLED
+      - name: Checkout pinned WLED
         uses: actions/checkout@v6
         with:
           repository: wled/WLED
+          ref: v16.0.1
           path: WLED
           persist-credentials: false
 
@@ -30,16 +32,34 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.platformio
-          key: pio-esp32-${{ hashFiles('WLED/platformio.ini') }}
-          restore-keys: pio-esp32-
+          key: pio-6.1.19-${{ runner.os }}-${{ hashFiles('WLED/platformio.ini', 'usermod/build/platformio_override.ini') }}
+          restore-keys: |
+            pio-6.1.19-${{ runner.os }}-
 
       - name: Install PlatformIO
-        run: pip install platformio
+        run: python3 -m pip install platformio==6.1.19
 
-      - name: Configure usermod build
-        run: |
-          printf '[env:ci]\nextends = env:esp32dev\ncustom_usermods = file://${{ github.workspace }}/usermod\n' \
-            >> WLED/platformio_override.ini
+      - name: Build An-Penta-Deca firmware
+        env:
+          WLED_DIR: ${{ github.workspace }}/WLED
+        run: ./usermod/scripts/build.sh
 
-      - name: Build
-        run: platformio run -d WLED -e ci
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HeeremaWLED-${{ github.sha }}
+          path: |
+            usermod/dist/*.bin
+            usermod/dist/*.sha256
+          if-no-files-found: error
+
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          usermod/dist/*.bin usermod/dist/*.sha256
+          --repo "${GITHUB_REPOSITORY}"
+          --verify-tag
+          --generate-notes

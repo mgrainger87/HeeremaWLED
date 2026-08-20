@@ -1,72 +1,107 @@
-# WLED usermod example
+# HeeremaWLED
 
-This repository is a [GitHub template](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template) for building your own [WLED](https://github.com/wled/WLED) usermod as a standalone project. Create a new repository from it, add your code, link it to WLED, and make the world a brighter place!
+Reproducible custom WLED firmware for a QuinLED An-Penta-Deca with three
+segment-aware wall buttons and WLED's AudioReactive usermod.
 
-## Getting started
+The build is pinned to **WLED 16.0.1**. It produces a standard OTA-uploadable
+`.bin` for the classic ESP32/4 MB An-Penta-Deca configuration.
 
-### 1. Create from template
+## Button mapping
 
-Click **Use this template** → **Create a new repository** on GitHub. You get a clean copy to start building your project from. Then:
+| Physical input | WLED button | GPIO | Default segment |
+| --- | ---: | ---: | ---: |
+| Button 2 | 1 | 39 | 0 |
+| Button 3 | 2 | 34 | 1 |
+| Button 4 | 3 | 33 | 2 |
 
-- Rename `usermod_example.cpp` to something descriptive (e.g. `my_sensor.cpp`)
-- Rename the class inside from `MyExampleUsermod` to match
-- Update `"name"` in `library.json` to match your repository name
+Button 1 (WLED index 0, GPIO 36) is deliberately not intercepted.
 
-### 2. Wire it into your WLED build
+Each handled button supports:
 
-Clone your new repository alongside your WLED checkout:
+- Single press: fade its assigned segment on or off using WLED's transition
+  duration.
+- Double press: turn the segment on at full value and select its configured
+  white color temperature.
+- Press, release, then press and hold: start a slower Rainbow color show on
+  the segment, if enabled.
+- Hold while off: ramp the segment brighter.
+- Hold while on: ramp the segment dimmer. Reaching the minimum turns the
+  segment logically off and resets its next-on brightness to full.
 
+The segment ID, enable switch, target Kelvin value, and warm/cool endpoint
+ratings are configurable separately for each button under **Config →
+Usermods**. Global gesture timing and the color-show enable switch are grouped
+separately.
+
+## Included WLED usermods
+
+- `wled-usermod-heerema-smart-buttons` from this repository
+- `multi_relay`
+- `audioreactive`
+
+AudioReactive starts disabled with no microphone pins assigned. WLED's generic
+ESP32 defaults conflict with An-Penta-Deca GPIO functions, so configure a known
+compatible microphone pinout or network audio sync before enabling it.
+
+## Build locally
+
+Requirements:
+
+- Git
+- Python 3
+- Node.js 20
+- A C/C++ build toolchain supported by PlatformIO
+
+Run:
+
+```bash
+./scripts/build.sh
 ```
-~/projects/
-  WLED/
-  wled-usermod-my_sensor/
-    library.json
-    my_sensor.cpp
+
+The script clones WLED `v16.0.1` into `.build/WLED`, installs PlatformIO 6.1.19
+in an isolated environment if necessary, builds the firmware, and writes the
+`.bin` and SHA-256 checksum to `dist/`.
+
+To use an existing WLED checkout:
+
+```bash
+WLED_DIR=/absolute/path/to/WLED ./scripts/build.sh
 ```
 
-In `platformio_override.ini` inside the WLED folder, add a `symlink://` reference to your local clone:
+That checkout must be exactly at tag `v16.0.1`. The script writes its generated
+`platformio_override.ini`, so do not point it at a checkout containing an
+override file you need to preserve.
+
+## GitHub builds and releases
+
+Every push to `main` and every pull request builds the firmware and uploads it
+as a GitHub Actions artifact. Pushing a tag beginning with `v` also creates a
+GitHub Release containing the `.bin` and checksum:
+
+```bash
+git tag v2.3.0
+git push origin v2.3.0
+```
+
+## Install only the usermod in another WLED build
+
+Add the tagged repository to that build's `custom_usermods`:
 
 ```ini
-[env:esp32dev]
-extends = env:esp32dev
 custom_usermods =
-  ${env:esp32dev.custom_usermods}
-  symlink:///home/you/projects/wled-usermod-my_sensor
+  https://github.com/mgrainger87/HeeremaWLED.git#v2.3.0
 ```
 
-Add both projects to the same VS Code workspace if you want to edit them together. PlatformIO picks up your changes on each build.
+The complete An-Penta-Deca firmware additionally requires the build flags in
+[`build/platformio_override.ini`](build/platformio_override.ini).
 
-### 3. Share it
+## Runtime configuration backup
 
-Tag your working version and add your usermod to the [Community Usermods page](https://kno.wled.ge/advanced/community-usermods/) by sending a PR to [WLED-Docs](https://github.com/wled/WLED-Docs).  Other developers can add your usermod to their builds by adding your repository to their build's `custom_usermods`!
+Segment boundaries, presets, Wi-Fi settings, and usermod settings live on the
+controller rather than in the firmware binary. Keep a WLED configuration and
+presets backup alongside each deployed release. Do not publish an unsanitized
+backup because it may contain network credentials.
 
-```ini
-custom_usermods =
-  ${env:esp32dev.custom_usermods}
-  https://github.com/you/wled-usermod-my_sensor.git#v1.0.0
-```
+## License
 
-
-## What's in this repo
-
-**`library.json`** — PlatformIO library manifest. The `"libArchive": false` setting is required; without it the build will fail. Add any library dependencies here.
-
-**`usermod_example.cpp`** — A fully annotated example covering all available lifecycle hooks:
-
-| Method | When called |
-|---|---|
-| `setup()` | Once at boot, after config is loaded, before WiFi |
-| `connected()` | Each time WiFi (re)connects |
-| `loop()` | Every main loop iteration |
-| `addToJsonInfo()` | When `/json/info` is requested |
-| `addToJsonState()` / `readFromJsonState()` | On `/json/state` get/post |
-| `addToConfig()` / `readFromConfig()` | Persistent settings in `cfg.json` |
-| `appendConfigData()` | When the Usermod Settings page renders |
-| `handleOverlayDraw()` | Just before each LED strip update |
-| `handleButton()` | On button events |
-| `onMqttMessage()` / `onMqttConnect()` | MQTT events |
-| `onStateChange()` | When WLED state changes |
-
-`REGISTER_USERMOD(instance)` at the bottom of the file handles self-registration — there is no `usermods_list.cpp` to edit.
-
-For full documentation see the [WLED Custom Features](https://kno.wled.ge/advanced/custom-features/) page.
+Licensed under the EUPL-1.2, matching WLED 16.0.1. See [`LICENSE`](LICENSE).

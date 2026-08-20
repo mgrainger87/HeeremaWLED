@@ -1,7 +1,13 @@
 {
-  "name": "wled-usermod-example",
+  "name": "wled-usermod-heerema-smart-buttons",
+  "version": "2.3.0",
+  "description": "Segment-aware smart wall-button controls for a QuinLED An-Penta-Deca running WLED",
+  "keywords": ["wled", "usermod", "button", "dimmer", "quinled", "an-penta-deca"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mgrainger87/HeeremaWLED.git"
+  },
   "build": {
     "libArchive": false
-  },
-  "dependencies": {}
+  }
 }
